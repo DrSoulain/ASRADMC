@@ -213,12 +213,12 @@ def check_temp_exist(npts, param, perform_amr=False, savedir='',
 
     rnuc_au = rnuc * dpc
     done = False
+    print(list_xi)
     if np.round(rnuc_au, 2) in list_rnuc3:
         if xi in list_xi:
             tmp = tempdir + 'rnuc=%2.2f/xi=%2.2f/' % (rnuc_au, xi)
             filename = tmp + 'Tdist_npix=%i_xi=%2.2f_rnuc=%2.2f_mix=%2.2f_%s.fits' % (npts, xi, rnuc_au,
                                                                                       mix, ss)
-            print(filename)
             if os.path.exists(filename):
                 cprint(
                     "\n---------------------------------------------------------", "cyan")
