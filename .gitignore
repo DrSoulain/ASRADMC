@@ -2,3 +2,8 @@
 /.vscode
 /asradmc.egg-info
 /cat
+
+# inside asradmc
+asradmc/*.pyc
+asradmc/.DS_Store
+asradmc/__pycache__
