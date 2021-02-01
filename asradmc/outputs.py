@@ -340,13 +340,13 @@ def save_rho(npts, param, binary=True, perform_amr=False, savedir=''):
         rho2 = rho.copy()
 
     rho_dust = rho2[rho2 > 1e-50]
-    
+
     try:
         cellV = data.grid.getCellVolume()
     except ValueError:
-        cellV_one = (2*abs(data.grid.xi[0])/data.grid.nx)**3
-        cellV = np.ones(rho2.shape)*cellV_one
-        
+        cellV_one = (2 * abs(data.grid.xi[0]) / data.grid.nx)**3
+        cellV = np.ones(rho2.shape) * cellV_one
+
     cellV2 = cellV[rho2 > 1e-50]
 
     m = cellV2 * rho_dust
@@ -355,8 +355,6 @@ def save_rho(npts, param, binary=True, perform_amr=False, savedir=''):
                 'Vol_cell': cellV2,
                 'mass_tot': m.sum() / ms
                 }
-    
-    print(rho_save['mass_tot'])
 
     str_amr = "NoAmr"
     if perform_amr:
