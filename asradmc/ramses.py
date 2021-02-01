@@ -528,7 +528,7 @@ def ramses_gas_to_dust(ramses_model, param, unit='AU', verbose=False,
 
     stellar_pos = [x_wr, y_wr, x_ob, y_ob]
     if verbose:
-        print("m1 = %2.2f; m2 = %2.2f" % (mix * 100, 1 - mix * 100))
+        print("m1 = %2.2f; m2 = %2.2f" % (mix * 100, (1 - mix) * 100))
 
     # Step 1: convert gas to dust applying gas to dust ratio xi.
     rho_dust = _apply_gas2dust_ratio(rho_gas, xi)
