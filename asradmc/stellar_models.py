@@ -22,6 +22,8 @@ Core functions are:
 ------------------------------------------------------------------------
 """
 
+import os
+
 import numpy as np
 from astools.all import AllMyFields, find_nearest, norm
 from astools.phot import Planck_law, fluxToJy
@@ -44,8 +46,15 @@ ls = 3.8525e33  # Solar luminosity        [erg/s]
 rs = 6.96e10  # Solar radius            [cm]
 
 # ================== CHANGE THE MODELS DIRECTORY HERE ==================
-dir_spectra = "/Users/asoulain/Documents/Projet_WR/Modelisation/Atm_model_spectrum/"
+dir_spectra = os.environ.get('dir_spectra')
 # ======================================================================
+
+if dir_spectra is None:
+    cprint("Atmosphere models directory not set:", 'red')
+    cprint("-> Add environment variable to your .bash_profile.", 'red')
+    cprint("-> e.g.: export dir_spectra='atm_model_directory_path'", 'red')
+if not os.path.exists(dir_spectra):
+    cprint("Atmosphere models directory not found.", 'red')
 
 
 def sed_PoWR_models(lam, param, year=2018, display=False, verbose=True):
