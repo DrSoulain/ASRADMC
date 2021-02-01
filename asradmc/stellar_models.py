@@ -53,7 +53,7 @@ if dir_spectra is None:
     cprint("Atmosphere models directory not set:", 'red')
     cprint("-> Add environment variable to your .bash_profile.", 'red')
     cprint("-> e.g.: export dir_spectra='atm_model_directory_path'", 'red')
-if not os.path.exists(dir_spectra):
+if (dir_spectra is not None) and not os.path.exists(dir_spectra):
     cprint("Atmosphere models directory not found.", 'red')
 
 
