@@ -24,8 +24,8 @@ from astropy.io import fits
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, PowerNorm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from termcolor import cprint
 from munch import munchify as dict2class
+from termcolor import cprint
 
 from asradmc.radmc3dPy import analyze
 from asradmc.radmc3dPy import image as imageradmc
@@ -218,7 +218,7 @@ def check_temp_exist(npts, param, perform_amr=False, savedir='',
             tmp = tempdir + 'rnuc=%2.2f/xi=%2.2f/' % (rnuc_au, xi)
             filename = tmp + 'Tdist_npix=%i_xi=%2.2f_rnuc=%2.2f_mix=%2.2f_%s.fits' % (npts, xi, rnuc_au,
                                                                                       mix, ss)
-
+            print(filename)
             if os.path.exists(filename):
                 cprint(
                     "\n---------------------------------------------------------", "cyan")
