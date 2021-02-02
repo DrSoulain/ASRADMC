@@ -8,7 +8,7 @@ Created on Wed Apr 24 11:31:43 2019
 asradmc: Tools to perform RT modeling on analytical grid or ramses data
 ------------------------------------------------------------------------
 
-Function to read the outputs of radmc3d.
+Functions to read and save the outputs of radmc3d.
 
 ------------------------------------------------------------------------
 """

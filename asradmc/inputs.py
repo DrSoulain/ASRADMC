@@ -282,17 +282,7 @@ def make_amr_grid(gridinfo, verbose=True):
         f.writelines("%13.6e\n" % l for l in xi)
         f.writelines("%13.6e\n" % l for l in yi)
         f.writelines("%13.6e\n" % l for l in zi)
-    with open("amr_grid_noOct.txt", "w+") as f:
-        f.write("1\n")  # iformat
-        f.write("0\n")  # AMR grid style  (0=regular grid, no AMR)
-        f.write("0\n")  # Coordinate system
-        f.write("0\n")  # gridinfo
-        f.write("1 1 1\n")  # Include x,y,z coordinate
-        f.write("%d %d %d\n" % (nx, ny, nz))  # Size of grid
-        f.writelines("%13.6e\n" % l for l in xi)
-        f.writelines("%13.6e\n" % l for l in yi)
-        f.writelines("%13.6e\n" % l for l in zi)
-
+    
     if verbose:
         cprint("##### amr_grid.inp file created...\n", color="cyan")
     return None
@@ -324,13 +314,9 @@ def make_density_file(rhod_dust, binary=True, verbose=True):
         with open(filename, "w+b") as f:
             f.write(sdat)
 
-    file = open("dust_density_grid.dpy", "wb")
-    pickle.dump(data, file)
-    file.close()
-
     if verbose:
         cprint("##### %s file created...\n" % (filename), color="cyan")
-    return None
+    return data
 
 
 def make_amr_grid_octree(nx, ny, nz, xi, yi, zi, levelmax=1, nleaf=100,
