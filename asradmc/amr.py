@@ -29,7 +29,7 @@ from asradmc.inputs import make_amr_grid_octree, make_density_file
 au = const.au.cgs.value  # Astronomical Unit       [cm]
 
 
-def check_requirement(name_dust_type, taumax=1):
+def check_requirement(name_dust_type, density, taumax=1):
     """ Check the requested amr level required to obtain a
     fully optically thin (tau < 1) grid. """
     dustfile = 'dustkappa_%s.inp' % (name_dust_type)
@@ -43,9 +43,9 @@ def check_requirement(name_dust_type, taumax=1):
     # ------------------------------------------------------------------------------
     grid = np.array(pandas.read_csv("amr_grid.inp", header=None))[:, 0]
 
-    file = open("dust_density_grid.dpy", "rb")
-    density = pickle.load(file)
-    file.close()
+    # file = open("dust_density_grid.dpy", "rb")
+    # density = pickle.load(file)
+    # file.close()
 
     n_cell = len(density)
 
