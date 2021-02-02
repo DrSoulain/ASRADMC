@@ -1,9 +1,16 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Jan  8 12:01:24 2020
+Created on Wed Apr 24 11:31:43 2019
 
-@author: asoulain
+@author: Anthony Soulain (University of Sydney)
+
+------------------------------------------------------------------------
+asradmc: Tools to perform RT modeling on analytical grid or ramses data
+------------------------------------------------------------------------
+
+Functions to analyse and use the saved results of radmc-3d.
+
+------------------------------------------------------------------------
 """
 
 import os
