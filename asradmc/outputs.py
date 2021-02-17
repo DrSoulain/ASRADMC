@@ -710,7 +710,7 @@ def save_temp_results(npts, param, start_time=0, Tsub=2000,
 
     # Find the dust in the grid
     loc_dust = dens > 1e-40
-
+    
     l_temp = temp[loc_dust]
 
     Tmean = l_temp.mean()
@@ -729,7 +729,10 @@ def save_temp_results(npts, param, start_time=0, Tsub=2000,
     m = t / 60.0
 
     # Dictionnary to be saved
-    save_temp = {"Tmax": Tmax, "Tmean": Tmean,
+    cond = l_temp >= 0
+    n_dust = float(len(l_temp[cond]))
+    n_over_rel = 100 * (n_over_Tsub / n_dust)
+    save_temp = {"Tmax": Tmax, "Tmean": Tmean, "Nhot_rel": n_over_rel,
                  "Nhot": n_over_Tsub, "param": param, "time": m}
 
     s = "NoAmr"
