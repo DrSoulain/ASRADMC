@@ -1,11 +1,11 @@
 """This module contains functions to read and write input/output data for RADMC-3D and
 to do some simple analysis/diagnostics of the model.
 """
-from __future__ import absolute_import
-from __future__ import print_function
+from __future__ import absolute_import, print_function
+
 import traceback
-from multiprocessing import Pool
 from functools import partial
+from multiprocessing import Pool
 
 try:
     import numpy as np
@@ -24,23 +24,22 @@ except ImportError:
     print('Without matplotlib you can use the python module to set up a model but you will not be able to plot things')
     print('or display images')
 
-from matplotlib.colors import LogNorm
-import matplotlib.patches as patches
 import matplotlib.lines as ml
+import matplotlib.patches as patches
+from matplotlib.colors import LogNorm
 
-from . natconst import *
-
-from . dustopac import *
-from . radsources import *
-from . params import *
-from . data import *
-from . octree import *
-from . reggrid import *
-from . molecule import *
+from .data import *
+from .dustopac import *
+from .molecule import *
+from .natconst import *
+from .octree import *
+from .params import *
+from .radsources import *
+from .reggrid import *
 
 
 def readData(ddens=False, dtemp=False, gdens=False, gtemp=False, gvel=False, ispec=None, vturb=False, grid=None,
-             binary=True, old=False, octree=False):
+             binary=True, old=False, octree=False, file_grid='', file_temp=None, file_dens=None):
     """Reads the physical variables of the model (e.g. density, velocity, temperature).
 
     Parameters
@@ -93,15 +92,15 @@ def readData(ddens=False, dtemp=False, gdens=False, gtemp=False, gvel=False, isp
 
         if octree:
             res.grid = radmc3dOctree()
-            res.grid.readSpatialGrid()
+            res.grid.readSpatialGrid(file_grid)
         else:
             res.grid = radmc3dGrid()
             res.grid.readSpatialGrid(old=old)
 
     if ddens:
-        res.readDustDens(binary=binary, old=old, octree=octree)
+        res.readDustDens(file_dens, binary=binary, old=old, octree=octree)
     if dtemp:
-        res.readDustTemp(binary=binary, old=old, octree=octree)
+        res.readDustTemp(file_temp, binary=binary, old=old, octree=octree)
     if gvel:
         res.readGasVel(binary=binary, octree=octree)
     if gtemp:
@@ -221,7 +220,7 @@ def readGrid(sgrid=True, wgrid=True, sgrid_fname=None, wgrid_fname=None, old=Fal
                 raise ValueError('Unsupported amr_style' + ("%d" % hdr[1]) + '\n '
                                  + 'Only regular (0) or octree-like (1) AMR styles are supported')
             grid.readSpatialGrid(fname=sgrid_fname)
-        else: 
+        else:
             grid.readSpatialGrid(fname=sgrid_fname, old=old)
 
     if wgrid:
@@ -369,7 +368,7 @@ def getDensVstruct(data=None, vmean_temp=False, ispec_tgas=0, gsize=None, idust=
 
     if isinstance(data.grid, radmc3dOctree):
         msg = 'Vertical hydrostatic equilibrium structure iteration has been implemented for regular grids only ' \
-               '(i.e. no Octree AMR yet)'
+            '(i.e. no Octree AMR yet)'
         raise RuntimeError(msg)
 
     if mu is None:
@@ -388,7 +387,6 @@ def getDensVstruct(data=None, vmean_temp=False, ispec_tgas=0, gsize=None, idust=
     A = mu * nc.mp * nc.gg * mstar / nc.kk
     cost = np.cos(data.grid.y)
     costi = np.cos(data.grid.yi)
-
 
     if mstar is None:
         raise ValueError('Unkonwn mstar. \n The stellar mass is required to calculate the '
@@ -409,14 +407,16 @@ def getDensVstruct(data=None, vmean_temp=False, ispec_tgas=0, gsize=None, idust=
     # Get the cell volumes
     vol = data.grid.getCellVolume()
     # Calculate the surface of each grid facet in the midplane
-    surf = np.zeros([data.grid.nx, data.grid.nz], dtype=np.float64)
+    surf = np.zeros([data.grid.nxRoot, data.grid.nz], dtype=np.float64)
     diff_r2 = (data.grid.xi[1:] ** 2 - data.grid.xi[:-1] ** 2) * 0.5
     diff_phi = data.grid.zi[1:] - data.grid.zi[:-1]
-    for ix in range(data.grid.nx):
+    for ix in range(data.grid.nxRoot):
         surf[ix, :] = diff_r2[ix] * diff_phi
 
-    mass = np.zeros([data.grid.nx, data.grid.nz, data.rhodust.shape[3]], dtype=np.float64)
-    sigma_init = np.zeros([data.grid.nx, data.grid.nz, data.rhodust.shape[3]], dtype=np.float64)
+    mass = np.zeros([data.grid.nxRoot, data.grid.nz,
+                     data.rhodust.shape[3]], dtype=np.float64)
+    sigma_init = np.zeros(
+        [data.grid.nxRoot, data.grid.nz, data.rhodust.shape[3]], dtype=np.float64)
     for i in range(data.rhodust.shape[3]):
         mass[:, :, i] = (vol * data.rhodust[:, :, :, i]).sum(1)
         sigma_init[:, :, i] = mass[:, :, i] / surf
@@ -428,7 +428,8 @@ def getDensVstruct(data=None, vmean_temp=False, ispec_tgas=0, gsize=None, idust=
     #  symmetric to the disk midplane we use T_new(theta) = T_new(pi-theta) = 0.5 * (T(theta) + T(pi-theta))
     if vmean_temp:
         if abs(data.grid.yi[data.grid.nyi - 1] - np.pi / 2.) < 1e-8:
-            raise RuntimeError("Cannot average temperature in the vertical direction if theta mirroring is active")
+            raise RuntimeError(
+                "Cannot average temperature in the vertical direction if theta mirroring is active")
         else:
             print(' Smoothing the vertical temperature structure by averaging the temperature of the two half \n'
                   ' planes above and below the disk midplane')
@@ -437,7 +438,8 @@ def getDensVstruct(data=None, vmean_temp=False, ispec_tgas=0, gsize=None, idust=
                 print(iy)
                 dusttemp_dummy[:, iy, :, :] = 0.5 * (data.dusttemp[:, iy, :, :]
                                                      + data.dusttemp[:, data.grid.ny - 1 - iy, :, :])
-                dusttemp_dummy[:, data.grid.ny - 1 - iy, :, :] = dusttemp_dummy[:, iy, :, :]
+                dusttemp_dummy[:, data.grid.ny - 1 -
+                               iy, :, :] = dusttemp_dummy[:, iy, :, :]
 
     # Take the temperature of the dust component that represents the gas temperature
     dusttemp_dummy = data.dusttemp[:, :, :, ispec_tgas]
@@ -447,17 +449,20 @@ def getDensVstruct(data=None, vmean_temp=False, ispec_tgas=0, gsize=None, idust=
 
     if gsize is not None:
         if len(gsize) != 0:
-            dusttemp = np.zeros([data.grid.nx, data.grid.ny, data.grid.nz], dtype=np.float64)
+            dusttemp = np.zeros(
+                [data.grid.nxRoot, data.grid.ny, data.grid.nz], dtype=np.float64)
             w = np.zeros(data.rhodust.shape, dtype=np.float64)
             for ispec in idust:
-                w[:, :, :, ispec] = gsize[ispec] ** 2 * (data.rhodust[:, :, :, ispec] / gsize[ispec] ** 3)
+                w[:, :, :, ispec] = gsize[ispec] ** 2 * \
+                    (data.rhodust[:, :, :, ispec] / gsize[ispec] ** 3)
 
             wnorm = w.sum(3)
             for ispec in idust:
                 w[:, :, :, ispec] = w[:, :, :, ispec] / wnorm
 
             for ispec in idust:
-                dusttemp = dusttemp + data.dusttemp[:, :, :, ispec] * w[:, :, :, ispec]
+                dusttemp = dusttemp + \
+                    data.dusttemp[:, :, :, ispec] * w[:, :, :, ispec]
         else:
             dusttemp = np.array(dusttemp_dummy)
     else:
@@ -466,7 +471,7 @@ def getDensVstruct(data=None, vmean_temp=False, ispec_tgas=0, gsize=None, idust=
     # Loop over all dust species where we should calculate the vertical structure
     for ispec in idust:
         rho_new[:, :, :, ispec] = 0.
-        for ir in range(data.grid.nx):
+        for ir in range(data.grid.nxRoot):
             print(ir, data.grid.nx - 1)
             r = data.grid.x[ir]
             z = r * cost
@@ -518,15 +523,15 @@ def getDensVstruct(data=None, vmean_temp=False, ispec_tgas=0, gsize=None, idust=
                     #
                     for it in range(int(data.grid.ny / 2), 0, -1):
                         rho_new[ir, it - 1, ip, ispec] = rho_new[ir, it, ip, ispec] \
-                                                         * np.exp(-(const * zpt[it - 1] + dlgtemp[it - 1] / dz[it - 1])
-                                                                  * dz[it - 1])
+                            * np.exp(-(const * zpt[it - 1] + dlgtemp[it - 1] / dz[it - 1])
+                                     * dz[it - 1])
                     #
                     # From the midplane to the north pole
                     #
                     for it in range(int(data.grid.ny / 2), data.grid.ny):
                         rho_new[ir, it, ip, ispec] = rho_new[ir, it - 1, ip, ispec] \
-                                                     * np.exp((const * zpt[it - 1] + dlgtemp[it - 1]
-                                                               / dz[it - 1]) * dz[it - 1])
+                            * np.exp((const * zpt[it - 1] + dlgtemp[it - 1]
+                                      / dz[it - 1]) * dz[it - 1])
 
                     # # Now re-normalize the surface density to the input value
                     # sigma = (data.rhodust[ir, :, ip, ispec] * (zi[1:] - zi[:-1])).sum()
@@ -534,7 +539,6 @@ def getDensVstruct(data=None, vmean_temp=False, ispec_tgas=0, gsize=None, idust=
                     #
                     # rho_new[ir, :, ip, ispec] = rho_new[ir, :, ip, ispec] * sigma / sigma_new
                     # rho_new = rho_new.clip(1e-90, 1e90)
-
 
         # Renormalize the density
         mass = (vol * rho_new[:, :, :, ispec]).sum(1)
@@ -699,7 +703,8 @@ def plotSpectrum(a, ev=False, kev=False, micron=False, jy=False, lsun=False,
     #
     if ilin is not None:
         if mol is None:
-            raise ValueError("Unknown mol. If ilin is set, the molecular data should also be provided as mol=...")
+            raise ValueError(
+                "Unknown mol. If ilin is set, the molecular data should also be provided as mol=...")
         else:
             freq0 = mol.freq[ilin - 1]
             xcoord = nc.cc * (freq0 - freq) / freq0 / 1.e5
@@ -770,7 +775,7 @@ def plotSpectrum(a, ev=False, kev=False, micron=False, jy=False, lsun=False,
     #
     # Now plot
     #
-    plt.plot(xcoord, ycoord, c = 'steelblue')
+    plt.plot(xcoord, ycoord, c='steelblue')
 
 
 def gmass(x=None, y=None, z=None, dx=None, dy=None, dz=None, model=None, ppar=None, **kwargs):
@@ -822,7 +827,8 @@ def gmass(x=None, y=None, z=None, dx=None, dy=None, dz=None, model=None, ppar=No
         xoffset = (np.random.random_sample(ncell) - 0.5) * dx * 4.0
         yoffset = (np.random.random_sample(ncell) - 0.5) * dy * 4.0
         zoffset = (np.random.random_sample(ncell) - 0.5) * dz * 4.0
-        rho[:, isample] = model.getGasDensity(x + xoffset, y + yoffset, z + zoffset, ppar=ppar)
+        rho[:, isample] = model.getGasDensity(
+            x + xoffset, y + yoffset, z + zoffset, ppar=ppar)
 
     mass = rho.max(1) * dx * dy * dz * 8.0
     jj = (mass > ppar['threshold'])
@@ -883,7 +889,8 @@ def gdensMinMax(x=None, y=None, z=None, dx=None, dy=None, dz=None, model=None, p
         xoffset = (np.random.random_sample(ncell) - 0.5) * dx * 4.0
         yoffset = (np.random.random_sample(ncell) - 0.5) * dy * 4.0
         zoffset = (np.random.random_sample(ncell) - 0.5) * dz * 4.0
-        rho[:, isample] = model.getGasDensity(x + xoffset, y + yoffset, z + zoffset, ppar=ppar)
+        rho[:, isample] = model.getGasDensity(
+            x + xoffset, y + yoffset, z + zoffset, ppar=ppar)
 
     rho_max = rho.max(axis=1)
     rho_min = rho.min(axis=1)
@@ -959,18 +966,18 @@ def findContainerLeafID(cellCRD=None, cellHW=None, xi=None, yi=None, zi=None, ch
     if zi[iz] != crd[2]:
         iz -= 1
 
-    nxRoot = xi.shape[0] - 1
-    nyRoot = yi.shape[0] - 1
-    nzRoot = zi.shape[0] - 1
+    nx = xi.shape[0] - 1
+    ny = yi.shape[0] - 1
+    nz = zi.shape[0] - 1
 
     if crd[0] == xi[-1]:
-        ix = nxRoot - 1
+        ix = nx - 1
     if crd[1] == yi[-1]:
-        iy = nyRoot - 1
+        iy = ny - 1
     if crd[2] == zi[-1]:
-        iz = nzRoot - 1
+        iz = nz - 1
 
-    ind = iz * nyRoot * nxRoot + iy * nxRoot + ix
+    ind = iz * ny * nx + iy * nx + ix
     dum = findContainerLeafIDRec(cellCRD[:, 0], cellCRD[:, 1], cellCRD[:, 2], cellHW[:, 0], cellHW[:, 1], cellHW[:, 2],
                                  childID, isLeaf, nChild, crd, ind)
     if dum is None:
@@ -1042,7 +1049,8 @@ def findContainerLeafIDRec(x=None, y=None, z=None, dx=None, dy=None, dz=None, ch
     else:
         dum = None
         for i in range(nChild):
-            dum = findContainerLeafIDRec(x, y, z, dx, dy, dz, childID, isLeaf, nChild, crd, childID[cellID][i])
+            dum = findContainerLeafIDRec(
+                x, y, z, dx, dy, dz, childID, isLeaf, nChild, crd, childID[cellID][i])
             if dum is not None:
                 break
 
@@ -1082,9 +1090,11 @@ def interpolateOctree(data=None, x=None, y=None, z=None, var=None, nproc=1):
         var = ['ddens']
 
     if nproc == 1:
-        print("Nearest neighbour interpolation using " + ("%d" % nproc) + ' process')
+        print("Nearest neighbour interpolation using " +
+              ("%d" % nproc) + ' process')
     else:
-        print("Nearest neighbour interpolation using " + ("%d" % nproc) + ' processes')
+        print("Nearest neighbour interpolation using " +
+              ("%d" % nproc) + ' processes')
     nx = x.shape[0]
     ny = y.shape[0]
     nz = z.shape[0]
@@ -1136,7 +1146,8 @@ def interpolateOctree(data=None, x=None, y=None, z=None, var=None, nproc=1):
                 iz = int(ind - ix * ny * nz - iy * nz)
 
                 if res[ind] >= 0:
-                    idata['rhodust'][ix, iy, iz, :] = data.rhodust[data.grid.leafID[res[ind]], :]
+                    idata['rhodust'][ix, iy, iz,
+                                     :] = data.rhodust[data.grid.leafID[res[ind]], :]
                 else:
                     idata['rhodust'][ix, iy, iz, :] = 0
 
@@ -1149,7 +1160,8 @@ def interpolateOctree(data=None, x=None, y=None, z=None, var=None, nproc=1):
                 iz = int(ind - ix * ny * nz - iy * nz)
 
                 if res[ind] is not None:
-                    idata['dusttemp'][ix, iy, iz, :] = data.dusttemp[data.grid.leafID[res[ind]], :]
+                    idata['dusttemp'][ix, iy, iz,
+                                      :] = data.dusttemp[data.grid.leafID[res[ind]], :]
                 else:
                     idata['dusttemp'][ix, iy, iz, :] = 0
 
@@ -1161,7 +1173,8 @@ def interpolateOctree(data=None, x=None, y=None, z=None, var=None, nproc=1):
                 iz = int(ind - ix * ny * nz - iy * nz)
 
                 if res[ind] is not None:
-                    idata['rhogas'][ix, iy, iz] = data.rhogas[data.grid.leafID[res[ind]]]
+                    idata['rhogas'][ix, iy,
+                                    iz] = data.rhogas[data.grid.leafID[res[ind]]]
                 else:
                     idata['rhogas'][ix, iy, iz] = 0
 
@@ -1173,7 +1186,8 @@ def interpolateOctree(data=None, x=None, y=None, z=None, var=None, nproc=1):
                 iz = int(ind - ix * ny * nz - iy * nz)
 
                 if res[ind] is not None:
-                    idata['ndens_mol'][ix, iy, iz] = data.ndens_mol[data.grid.leafID[res[ind]]]
+                    idata['ndens_mol'][ix, iy,
+                                       iz] = data.ndens_mol[data.grid.leafID[res[ind]]]
                 else:
                     idata['ndens_mol'][ix, iy, iz] = 0
 
@@ -1185,7 +1199,8 @@ def interpolateOctree(data=None, x=None, y=None, z=None, var=None, nproc=1):
                 iz = int(ind - ix * ny * nz - iy * nz)
 
                 if res[ind] is not None:
-                    idata['gastemp'][ix, iy, iz] = data.gastemp[data.grid.leafID[res[ind]]]
+                    idata['gastemp'][ix, iy,
+                                     iz] = data.gastemp[data.grid.leafID[res[ind]]]
                 else:
                     idata['gastemp'][ix, iy, iz] = 0
 
@@ -1197,7 +1212,8 @@ def interpolateOctree(data=None, x=None, y=None, z=None, var=None, nproc=1):
                 iz = int(ind - ix * ny * nz - iy * nz)
 
                 if res[ind] is not None:
-                    idata['vturb'][ix, iy, iz] = data.vturb[data.grid.leafID[res[ind]]]
+                    idata['vturb'][ix, iy,
+                                   iz] = data.vturb[data.grid.leafID[res[ind]]]
                 else:
                     idata['vturb'][ix, iy, iz] = 0
 
@@ -1209,7 +1225,8 @@ def interpolateOctree(data=None, x=None, y=None, z=None, var=None, nproc=1):
                 iz = int(ind - ix * ny * nz - iy * nz)
 
                 if res[ind] is not None:
-                    idata['gasvel'][ix, iy, iz, :] = data.gasvel[data.grid.leafID[res[ind]], :]
+                    idata['gasvel'][ix, iy, iz,
+                                    :] = data.gasvel[data.grid.leafID[res[ind]], :]
                 else:
                     idata['gasvel'][ix, iy, iz, :] = 0
     else:
@@ -1246,37 +1263,44 @@ def interpolateOctree(data=None, x=None, y=None, z=None, var=None, nproc=1):
                 idata['cellID'][ind] = cellID
                 if 'ddens' in var:
                     if cellID >= 0:
-                        idata['rhodust'][ix, iy, iz, :] = data.rhodust[data.grid.leafID[cellID]]
+                        idata['rhodust'][ix, iy, iz,
+                                         :] = data.rhodust[data.grid.leafID[cellID]]
                     else:
                         idata['rhodust'][ix, iy, iz, :] = 0.0
                 if 'dtemp' in var:
                     if cellID >= 0:
-                        idata['dusttemp'][ix, iy, iz, :] = data.dusttemp[data.grid.leafID[cellID]]
+                        idata['dusttemp'][ix, iy, iz,
+                                          :] = data.dusttemp[data.grid.leafID[cellID]]
                     else:
                         idata['dusttemp'][ix, iy, iz, :] = 0.0
                 if 'gdens' in var:
                     if cellID >= 0:
-                        idata['rhogas'][ix, iy, iz] = data.ndens_mol[data.grid.leafID[cellID]]
+                        idata['rhogas'][ix, iy,
+                                        iz] = data.ndens_mol[data.grid.leafID[cellID]]
                     else:
                         idata['rhogas'][ix, iy, iz] = 0.0
                 if 'ndens' in var:
                     if cellID >= 0:
-                        idata['ndens_mol'][ix, iy, iz] = data.ndens_mol[data.grid.leafID[cellID]]
+                        idata['ndens_mol'][ix, iy,
+                                           iz] = data.ndens_mol[data.grid.leafID[cellID]]
                     else:
                         idata['ndens_mol'][ix, iy, iz] = 0.0
                 if 'gtemp' in var:
                     if cellID >= 0:
-                        idata['gastemp'][ix, iy, iz] = data.gastemp[data.grid.leafID[cellID]]
+                        idata['gastemp'][ix, iy,
+                                         iz] = data.gastemp[data.grid.leafID[cellID]]
                     else:
                         idata['gastemp'][ix, iy, iz] = 0.0
                 if 'vturb' in var:
                     if cellID >= 0:
-                        idata['vturb'][ix, iy, iz] = data.vturb[data.grid.leafID[cellID]]
+                        idata['vturb'][ix, iy,
+                                       iz] = data.vturb[data.grid.leafID[cellID]]
                     else:
                         idata['vturb'][ix, iy, iz] = 0.0
                 if 'gvel' in var:
                     if cellID >= 0:
-                        idata['gasvel'][ix, iy, iz, :] = data.gasvel[data.grid.leafID[cellID], :]
+                        idata['gasvel'][ix, iy, iz,
+                                        :] = data.gasvel[data.grid.leafID[cellID], :]
                     else:
                         idata['gasvel'][ix, iy, iz, :] = 0.0
 
@@ -1284,7 +1308,7 @@ def interpolateOctree(data=None, x=None, y=None, z=None, var=None, nproc=1):
 
 
 def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=-1, xlim=(), ylim=(), log=False,
-                linunit='cm', angunit='rad',
+                linunit='cm', angunit='rad', vmax=None, vmin=None,
                 nx=100, ny=100, showgrid=False, gridcolor='k', gridalpha=1.0, nproc=1,
                 contours=False, clev=None, clmin=None, clmax=None, ncl=None, cllog=False, clcol='k',
                 cllabel=False, cllabel_fontsize=10, cllabel_fmt="%.1f", clalpha=1.0, ax=None, lattitude=True,
@@ -1415,7 +1439,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
         raise ValueError('Unkonwn data. Data to be plotted is not specified.')
 
     if data.grid is None:
-        raise AttributeError('Missing grid information in data. Plots cannot be made without a spatial grid.')
+        raise AttributeError(
+            'Missing grid information in data. Plots cannot be made without a spatial grid.')
     else:
         if isinstance(data.grid, radmc3dOctree):
             octree = True
@@ -1423,8 +1448,9 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
     if not octree:
         if icrd3 is None:
             if crd3 is None:
-                raise ValueError('Unknown coordinate for the third dimension (icrd3/crd3)')
-    
+                raise ValueError(
+                    'Unknown coordinate for the third dimension (icrd3/crd3)')
+
     var = var.strip().lower()
     varFound = False
     if var == 'ddens':
@@ -1448,11 +1474,13 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
     if var == 'taux':
         varFound = True
         if octree:
-            raise RuntimeError('Optical depth calculation has not yet been implemented for octrees')
+            raise RuntimeError(
+                'Optical depth calculation has not yet been implemented for octrees')
     if var == 'tauy':
         varFound = True
         if octree:
-            raise RuntimeError('Optical depth calculation has not yet been implemented for octrees')
+            raise RuntimeError(
+                'Optical depth calculation has not yet been implemented for octrees')
 
     if not varFound:
         raise ValueError('Unknown variable to be plotted : ', var, '\n Allowed variable names are : ddens, dtemp, '
@@ -1475,7 +1503,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
         linunit_label = r'[R$_\odot$]'
         linunit_norm = 1. / nc.rs
     else:
-        raise ValueError('Unknown linunit ', linunit, '\nSupported units are : cm, au, pc, rs')
+        raise ValueError('Unknown linunit ', linunit,
+                         '\nSupported units are : cm, au, pc, rs')
 
     if angunit.strip().lower() == 'rad':
         angunit_label = '[rad]'
@@ -1484,7 +1513,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
         angunit_label = '[deg]'
         angunit_norm = np.pi / 180.
     else:
-        raise ValueError('Unknown angunit ', angunit, '\nSupported units are : deg, rad')
+        raise ValueError('Unknown angunit ', angunit,
+                         '\nSupported units are : deg, rad')
 
     #
     # Now check which plane to be plotted
@@ -1496,22 +1526,33 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
     iplane = -1
 
     if octree:
-        plot_x = xlim[0] + (xlim[1] - xlim[0]) * np.arange(nx, dtype=float) / float(nx - 1)
-        plot_y = ylim[0] + (ylim[1] - ylim[0]) * np.arange(ny, dtype=float) / float(ny - 1)
+        plot_x = xlim[0] + (xlim[1] - xlim[0]) * \
+            np.arange(nx, dtype=float) / float(nx - 1)
+        plot_y = ylim[0] + (ylim[1] - ylim[0]) * \
+            np.arange(ny, dtype=float) / float(ny - 1)
         plot_z = np.array([crd3])
     else:
         plot_x = None
         plot_y = None
         plot_z = None
 
+    try:
+        nx = data.grid.nx
+    except AttributeError:
+        nx = data.grid.nxRoot
+    try:
+        ny = data.grid.ny
+    except AttributeError:
+        ny = data.grid.nyRoot
+
     if 'x' in plane:
         # xy plane
-        if data.grid.nx <= 1:
+        if nx <= 1:
             msg = 'The x dimension is switched off or has only a single grid cell, thus a 2D slice plot cannot ' \
                   'be done in the '+plane+' plane.'
             raise ValueError(msg)
         if 'y' in plane:
-            if data.grid.ny <= 1:
+            if ny <= 1:
                 msg = 'The y dimension is switched off or has only a single grid cell, thus a 2D slice plot cannot ' \
                       'be done in the '+plane+' plane.'
                 raise ValueError(msg)
@@ -1555,7 +1596,10 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
                     ynorm = linunit_norm
 
             if octree:
-                idata = interpolateOctree(data, x=plot_x / xnorm, y=plot_y / ynorm, z=plot_z, var=var, nproc=nproc)
+                idata = interpolateOctree(data, x=plot_x / xnorm, y=plot_y / ynorm, z=plot_z,
+                                          var=var, nproc=nproc)
+                idata_dens = interpolateOctree(data, x=plot_x / xnorm, y=plot_y / ynorm, z=plot_z,
+                                               var='ddens', nproc=nproc)
         # xz plane
         elif 'z' in plane:
             if data.grid.nz <= 1:
@@ -1570,7 +1614,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
                 if icrd3 is None:
                     icrd3 = np.abs(data.grid.y - crd3).argmin()
                     if lattitude:
-                        icrd3 = np.abs((np.pi / 2. - data.grid.y) - crd3).argmin()
+                        icrd3 = np.abs(
+                            (np.pi / 2. - data.grid.y) - crd3).argmin()
 
             if data.grid.crd_sys == 'car':
                 xlabel = r'x ' + linunit_label
@@ -1596,8 +1641,10 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
                     ynorm = linunit_norm
 
             if octree:
-               
-                idata = interpolateOctree(data, x=plot_x / xnorm, y=plot_z, z=plot_y / ynorm, var=var, nproc=nproc)
+                idata = interpolateOctree(data, x=plot_x / xnorm, y=plot_z, z=plot_y / ynorm,
+                                          var=var, nproc=nproc)
+                idata_dens = interpolateOctree(data, x=plot_x / xnorm, y=plot_z, z=plot_y / ynorm,
+                                               var='ddens', nproc=nproc)
     # yz plane
     else:
         if data.grid.ny <= 1:
@@ -1649,14 +1696,45 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
                 ynorm = angunit_norm
 
         if octree:
-            idata = interpolateOctree(data, x=plot_z, y=plot_x / xnorm, z=plot_y / ynorm, var=var, nproc=nproc)
+            idata = interpolateOctree(data, x=plot_z, y=plot_x / xnorm, z=plot_y / ynorm,
+                                      var=var, nproc=nproc)
+            idata_dens = interpolateOctree(data, x=plot_z, y=plot_x / xnorm, z=plot_y / ynorm,
+                                           var='ddens', nproc=nproc)
 
     #
     # Get the variable to be plotted
-    #
+
+    if isinstance(data.rhodust, int):
+        raise ValueError(
+            'Dust density is not present in the passed radmc3dData instance')
+    else:
+        if octree:
+            if ispec >= 0:
+                l_dens = np.squeeze(idata_dens['rhodust'][:, :, :, ispec])
+            else:
+                l_dens = np.squeeze(idata_dens['rhodust'].sum(3))
+
+        else:
+            if iplane == 0:
+                if ispec >= 0:
+                    l_dens = data.rhodust[icrd3, :, :, ispec]
+                else:
+                    l_dens = data.rhodust[icrd3, :, :, :].sum(2)
+            elif iplane == 1:
+                if ispec >= 0:
+                    l_dens = data.rhodust[:, icrd3, :, ispec]
+                else:
+                    l_dens = data.rhodust[:, icrd3, :, :].sum(2)
+            elif iplane == 2:
+                if ispec >= 0:
+                    l_dens = data.rhodust[:, :, icrd3, ispec]
+                else:
+                    l_dens = data.rhodust[:, :, icrd3, :].sum(2)
+
     if var == 'ddens':
         if isinstance(data.rhodust, int):
-            raise ValueError('Dust density is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Dust density is not present in the passed radmc3dData instance')
         else:
             if octree:
                 if ispec >= 0:
@@ -1685,7 +1763,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
 
     elif var == 'dtemp':
         if isinstance(data.dusttemp, int):
-            raise ValueError('Dust temperature is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Dust temperature is not present in the passed radmc3dData instance')
         else:
             if octree:
                 if ispec >= 0:
@@ -1708,12 +1787,14 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
                     if ispec >= 0:
                         pdata = data.dusttemp[:, :, icrd3, ispec]
                     else:
-                        raise IndexError('Negative dust species index : ', ispec)
+                        raise IndexError(
+                            'Negative dust species index : ', ispec)
             cblabel = r'$T_{\rm dust}$ [K]'
 
     elif var == 'gdens':
         if isinstance(data.rhogas, int):
-            raise ValueError('Gas density is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Gas density is not present in the passed radmc3dData instance')
         else:
             if octree:
                 pdata = np.squeeze(idata['rhogas'])
@@ -1728,7 +1809,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
 
     elif var == 'ndens':
         if isinstance(data.ndens_mol, int):
-            raise ValueError('Gas number density is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Gas number density is not present in the passed radmc3dData instance')
         else:
             if octree:
                 pdata = np.squeeze(idata['ndens_mol'])
@@ -1743,7 +1825,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
 
     elif var == 'gtemp':
         if isinstance(data.gastemp, int):
-            raise ValueError('Gas temperature is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Gas temperature is not present in the passed radmc3dData instance')
         else:
             if octree:
                 pdata = np.squeeze(idata['gastemp'])
@@ -1758,7 +1841,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
 
     elif var == 'vx':
         if isinstance(data.gasvel, int):
-            raise ValueError('Gas velocity is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Gas velocity is not present in the passed radmc3dData instance')
         else:
             if octree:
                 pdata = np.squeeze(idata['gasvel'][:, :, :, 0])
@@ -1773,7 +1857,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
 
     elif var == 'vy':
         if isinstance(data.gasvel, int):
-            raise ValueError('Gas velocity is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Gas velocity is not present in the passed radmc3dData instance')
         else:
             if octree:
                 pdata = np.squeeze(idata['gasvel'][:, :, :, 1])
@@ -1787,7 +1872,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
             cblabel = r'$v_{\rm y}$ [cm/s]'
     elif var == 'vz':
         if isinstance(data.gasvel, int):
-            raise ValueError('Gas velocity is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Gas velocity is not present in the passed radmc3dData instance')
         else:
             if octree:
                 pdata = np.squeeze(idata['gasvel'][:, :, :, 2])
@@ -1802,7 +1888,8 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
 
     elif var == 'vturb':
         if isinstance(data.vturb, int):
-            raise ValueError('Microturbulent velocity is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Microturbulent velocity is not present in the passed radmc3dData instance')
         else:
             if octree:
                 pdata = np.squeeze(idata['vturb'])
@@ -1817,10 +1904,12 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
 
     if var == 'taux':
         if isinstance(data.taux, int):
-            raise ValueError('Optical depth is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Optical depth is not present in the passed radmc3dData instance')
         else:
             if octree:
-                raise RuntimeError('Optical depth calculation has not yet been implemented for octrees.')
+                raise RuntimeError(
+                    'Optical depth calculation has not yet been implemented for octrees.')
             else:
                 if data.taux.shape[0] == 0:
                     raise ValueError('Optical depth has not been calculated yet. Run radmc3dData.getTau(wav=X) to '
@@ -1835,10 +1924,12 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
 
     if var == 'tauy':
         if isinstance(data.tauy, int):
-            raise ValueError('Optical depth is not present in the passed radmc3dData instance')
+            raise ValueError(
+                'Optical depth is not present in the passed radmc3dData instance')
         else:
             if octree:
-                raise RuntimeError('Optical depth calculation has not yet been implemented for octrees.')
+                raise RuntimeError(
+                    'Optical depth calculation has not yet been implemented for octrees.')
             else:
                 if iplane == 0:
                     pdata = data.tauy[icrd3, :, :]
@@ -1885,29 +1976,44 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
 
     #
     # Now do the colorscale plotting but only if contours is set to False
-    #
+    if vmax is None:
+        vmax = pdata.max()
+    if vmin is None:
+        vmin = pdata.min()
     if not contours:
         if log:
-            if 'vmin' not in kwargs:
-                vmin = pdata.min()
-            else:
-                vmin = kwargs['vmin']
+            # vmin = pdata.min()
+            # vmax = pdata.max()
+            # if 'vmin' not in kwargs:
+            #     vmin = pdata.min()
+            # else:
+            #     vmin = kwargs['vmin']
 
-            if 'vmax' not in kwargs:
-                vmax = pdata.max()
-            else:
-                vmax = kwargs['vmax']
+            # if 'vmax' not in kwargs:
+            #     vmax = pdata.max()
+            # else:
+            #     vmax = kwargs['vmax
 
+            import matplotlib
+            cblinthresh = None
+            if cblinthresh is None:
+                cblinthresh = float((vmax - vmin) / 10.0)
+            norm = matplotlib.colors.SymLogNorm(cblinthresh, vmin=vmin,
+                                                vmax=vmax, base=10)
             if pdata.min() <= 0:
                 pdata = pdata.clip(1e-90)
-            p = ax.pcolormesh(plot_x, plot_y, pdata.T, norm=LogNorm(vmin, vmax), **kwargs)
+            p = ax.pcolormesh(plot_x, plot_y, pdata.T, norm=norm,
+                              shading='nearest', cmap=kwargs['cmap'])
             # p = ax.imshow(pdata.T, origin='lower', extent=(plot_x[0]-dx*0.5, plot_x[-1]+dx*0.5,
             # plot_y[0]-dy*0.5, plot_y[-1]+dy*0.5),
             # norm=LogNorm(vmin, vmax), interpolation='nearest', aspect='auto', **kwargs)
             # Enable rasterization to enable easy save to file
             p.set_rasterized(True)
         else:
-            p = ax.pcolormesh(plot_x, plot_y, pdata.T, **kwargs)
+            c_d = l_dens < 1e-40
+            pdata[c_d] = np.nan
+            p = ax.pcolormesh(plot_x, plot_y, pdata.T, shading='nearest',
+                              vmin=vmin, vmax=vmax, cmap=kwargs['cmap'])
             # p = ax.imshow(pdata.T, origin='lower', extent=(plot_x[0]-dx*0.5, plot_x[-1]+dx*0.5,
             # plot_y[0]-dy*0.5, plot_y[-1]+dy*0.5),
             # vmin=vmin, vmax=vmax, interpolation='nearest', aspect='auto', **kwargs)
@@ -1931,16 +2037,20 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
         # Generate the contour levels
         if clev is None:
             if cllog is True:
-                clev = clmin * (clmax / clmin) ** (np.arange(ncl, dtype=float) / float(ncl - 1))
+                clev = clmin * (clmax / clmin) ** (np.arange(ncl,
+                                                             dtype=float) / float(ncl - 1))
             else:
-                clev = clmin + (clmax - clmin) * (np.arange(ncl, dtype=float) / float(ncl - 1))
+                clev = clmin + (clmax - clmin) * \
+                    (np.arange(ncl, dtype=float) / float(ncl - 1))
         if (clcol == 'none') | (clcol is None):
             if 'cmap' in kwargs:
-                c = ax.contour(plot_x, plot_y, pdata, clev, kwargs['cmap'], alpha=clalpha)
+                c = ax.contour(plot_x, plot_y, pdata, clev,
+                               kwargs['cmap'], alpha=clalpha)
             else:
                 c = ax.contour(plot_x, plot_y, pdata, clev, alpha=clalpha)
         else:
-            c = ax.contour(plot_x, plot_y, pdata.T, clev, colors=clcol, alpha=clalpha)
+            c = ax.contour(plot_x, plot_y, pdata.T, clev,
+                           colors=clcol, alpha=clalpha)
 
         if cllabel:
             plt.clabel(c, inline=1, fontsize=cllabel_fontsize, fmt=cllabel_fmt)
@@ -2063,9 +2173,11 @@ def plotSlice2D(data=None, var='ddens', plane='xy', crd3=0.0, icrd3=None, ispec=
                 px = data.grid.zi * znorm
 
             for ix in range(data.grid.nxi):
-                ax.add_line(ml.Line2D((px[ix], px[ix]), (py[0], py[-1]), color=gridcolor, alpha=gridalpha))
+                ax.add_line(
+                    ml.Line2D((px[ix], px[ix]), (py[0], py[-1]), color=gridcolor, alpha=gridalpha))
             for iy in range(data.grid.nyi):
-                ax.add_line(ml.Line2D((px[0], px[-1]), (py[iy], py[iy]), color=gridcolor, alpha=gridalpha))
+                ax.add_line(
+                    ml.Line2D((px[0], px[-1]), (py[iy], py[iy]), color=gridcolor, alpha=gridalpha))
 
     #
     # Set the axis limits
@@ -2130,7 +2242,9 @@ def plotDustOpac(opac=None, var='kabs', idust=0, ax=None, xlabel=None, ylabel=No
 
     if var.lower().strip() == 'kabs':
         if opac.kabs[idust].size != x.size:
-            msg = 'opac.kabs['+("%d" % idust)+'] has a different number of elements than opac.wav['+("%d" % idust)+']'
+            msg = 'opac.kabs['+("%d" % idust) + \
+                '] has a different number of elements than opac.wav['+(
+                    "%d" % idust)+']'
             raise ValueError(msg)
         y = opac.kabs[idust]
         if ylabel is None:
@@ -2138,7 +2252,9 @@ def plotDustOpac(opac=None, var='kabs', idust=0, ax=None, xlabel=None, ylabel=No
 
     elif var.lower().strip() == 'ksca':
         if opac.ksca[idust].size != x.size:
-            msg = 'opac.ksca['+("%d" % idust)+'] has a different number of elements than opac.wav['+("%d" % idust)+']'
+            msg = 'opac.ksca['+("%d" % idust) + \
+                '] has a different number of elements than opac.wav['+(
+                    "%d" % idust)+']'
             raise ValueError(msg)
         y = opac.ksca[idust]
         if ylabel is None:
@@ -2146,10 +2262,14 @@ def plotDustOpac(opac=None, var='kabs', idust=0, ax=None, xlabel=None, ylabel=No
 
     elif var.lower().strip() == 'kext':
         if opac.kabs[idust].size != x.size:
-            msg = 'opac.kabs['+("%d" % idust)+'] has a different number of elements than opac.wav['+("%d" % idust)+']'
+            msg = 'opac.kabs['+("%d" % idust) + \
+                '] has a different number of elements than opac.wav['+(
+                    "%d" % idust)+']'
             raise ValueError(msg)
         if opac.ksca[idust].size != x.size:
-            msg = 'opac.ksca['+("%d" % idust)+'] has a different number of elements than opac.wav['+("%d" % idust)+']'
+            msg = 'opac.ksca['+("%d" % idust) + \
+                '] has a different number of elements than opac.wav['+(
+                    "%d" % idust)+']'
             raise ValueError(msg)
         y = opac.kabs[idust] + opac.ksca[idust]
         if ylabel is None:
@@ -2157,7 +2277,9 @@ def plotDustOpac(opac=None, var='kabs', idust=0, ax=None, xlabel=None, ylabel=No
 
     elif var.lower().strip() == 'g':
         if opac.phase_g[idust].size != x.size:
-            msg = 'opac.g['+("%d" % idust)+'] has a different number of elements than opac.wav['+("%d" % idust)+']'
+            msg = 'opac.g['+("%d" % idust) + \
+                '] has a different number of elements than opac.wav['+(
+                    "%d" % idust)+']'
             raise ValueError(msg)
         y = opac.phase_g[idust]
         if ylabel is None:
@@ -2254,8 +2376,10 @@ def plotScatmat(opac=None, var='z11', idust=0, iwav=None, wav=None, xvar='ang', 
             else:
                 if (wav < opac.wav[idust].min()) | (wav > opac.wav[idust].max()):
                     msg = 'The requested wavelength is outside of the wavelength range contained in opac \n'
-                    msg += ' min(wav) [micron]: '+("%e" % opac.wav[idust].min())+'\n'
-                    msg += ' max(wav) [micron]: '+("%e" % opac.wav[idust].max())+'\n'
+                    msg += ' min(wav) [micron]: '+("%e" %
+                                                   opac.wav[idust].min())+'\n'
+                    msg += ' max(wav) [micron]: '+("%e" %
+                                                   opac.wav[idust].max())+'\n'
                     raise ValueError(msg)
                 else:
                     iwav = abs(opac.wav[idust] - wav).argmin()
@@ -2278,8 +2402,10 @@ def plotScatmat(opac=None, var='z11', idust=0, iwav=None, wav=None, xvar='ang', 
             else:
                 if (ang < opac.scatang[idust].min()) | (ang > opac.scatang[idust].max()):
                     msg = 'The requested angle is outside of the range of scattering angles contained in opac \n'
-                    msg += ' min(ang) [deg]: '+("%e" % opac.scatang[idust].min())+'\n'
-                    msg += ' max(ang) [deg]: '+("%e" % opac.scatang[idust].max())+'\n'
+                    msg += ' min(ang) [deg]: '+("%e" %
+                                                opac.scatang[idust].min())+'\n'
+                    msg += ' max(ang) [deg]: '+("%e" %
+                                                opac.scatang[idust].max())+'\n'
                     raise ValueError(msg)
                 else:
                     iang = abs(opac.scatang[idust] - ang).argmin()
@@ -2332,11 +2458,13 @@ def plotScatmat(opac=None, var='z11', idust=0, iwav=None, wav=None, xvar='ang', 
     if plot_type == 1:
         y = y[iwav, :]
         if title is None:
-            title = r'$\lambda$ = ' + ("%.3f" % opac.wav[idust][iwav]) + r'$\mu$m'
+            title = r'$\lambda$ = ' + \
+                ("%.3f" % opac.wav[idust][iwav]) + r'$\mu$m'
     elif plot_type == 2:
         y = y[:, iang]
         if title is None:
-            title = r'$\phi$ = ' + ("%.3f" % opac.scatang[idust][iang]) + r'$^\circ$'
+            title = r'$\phi$ = ' + \
+                ("%.3f" % opac.scatang[idust][iang]) + r'$^\circ$'
 
     p = ax.plot(x, y, fmt, **kwargs)
 

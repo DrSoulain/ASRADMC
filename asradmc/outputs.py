@@ -294,11 +294,11 @@ def _create_fitsname_radmc(model_type, param, npts, wl=None, perform_amr=False,
     i = param["incl"]
 
     if model_type == "spiral":
-        alpha = param["alpha"],
+        alpha = param["alpha"]
         omega = param["omega"] * 100
         fitsname = "%s_%s_npix=%d_" % (model_type, str_wl, npts)\
             + "xi=%2.2f_rnuc=%2.2f_mix=%2.2f_" % (xi, rnuc, mix)\
-            + "alpha=%2.2f_o=%2.2f_i=%d_%s" % (alpha, omega, i, str_amr)
+            + "alpha=%2.2f_o=%2.2f_i=%d_%s" % (float(alpha), omega, i, str_amr)
     elif model_type == "ramses":
         fitsname = "%s_%s_npix=%d_" % (model_type, str_wl, npts)\
             + "xi=%2.2f_rnuc=%2.2f_mix=%2.2f_" % (xi, rnuc, mix)\
@@ -593,7 +593,7 @@ def save_image_results(wl, dpc, param, wl_grid_ima, loadlambda,
     if save:
         write_fits(model_dir + fitsname + ".fits",
                    res_image.cube, res_image.wav, res_image.pix_size,
-                   param)
+                   param, align=-1)
     return res_image
 
 

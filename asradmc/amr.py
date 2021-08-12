@@ -155,6 +155,10 @@ def grid_refinement(t_amr, fov, dpc, ratio_y=1, binary=False):
 
     dic_raf = {"0": add_raf0, "1": add_raf1, "2": add_raf2, "3": add_raf3,
                "4": add_raf4, "5": add_raf5, "6": add_raf5}
+    
+    file = open('save_octree.dpy', 'w+')
+    pickle.dump([octree, dic_raf], file, 2)
+    file.close()
 
     # Compute the final octree (tree of refinement filled with 0 and 1)
     # -----------------------------------------------------------------
