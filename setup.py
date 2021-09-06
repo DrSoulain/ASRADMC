@@ -8,6 +8,6 @@ setup(
     packages=['asradmc'],
     install_requires=["matplotlib", "munch", "numpy", "pandas",
                       "astropy", "scipy", "termcolor", "tqdm",
-                      "uncertainties", "astroquery", "astropy", "pathlib",
+                      "uncertainties", "astropy", "pathlib",
                       "h5py", "ffmpeg", "seaborn"],
 )

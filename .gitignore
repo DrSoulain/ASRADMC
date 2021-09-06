@@ -7,3 +7,4 @@
 asradmc/*.pyc
 asradmc/.DS_Store
 asradmc/__pycache__
+asradmc/radmc3dPy/analyze.pyc

@@ -7,6 +7,9 @@ Created on Wed Nov 29 12:13:36 2017
 
 import time
 
+import matplotlib
+matplotlib.use('TkAgg')
+
 import matplotlib as mpl
 import numpy as np
 from matplotlib import pyplot as plt

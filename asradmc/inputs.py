@@ -17,6 +17,9 @@ import os
 import pickle
 import struct
 
+import matplotlib
+matplotlib.use('TkAgg')
+
 import numpy as np
 from matplotlib import pyplot as plt
 from termcolor import cprint
