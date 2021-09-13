@@ -25,16 +25,16 @@ Core functions are:
 import os
 
 import numpy as np
-from astools.all import AllMyFields, find_nearest, norm
-from astools.phot import Planck_law, fluxToJy
 from matplotlib import pyplot as plt
 from scipy import constants
 from scipy import integrate as ip
 from scipy.interpolate import interp1d
 from termcolor import cprint
 from astropy import constants as const
+from munch import munchify as dict2class
 
 from asradmc.radmc3dPy import staratm
+from asradmc.tools import find_nearest, norm
 
 # Some natural constants
 
@@ -195,7 +195,7 @@ def sed_PoWR_models(lam, param, year=2018, display=False, verbose=True):
         "radmc": {"si": f_star_si_1pc, "Jy": f_star_jy_1pc, "cgs": f_star_cgs_1pc},
     }
 
-    fstar = AllMyFields(f_star)
+    fstar = dict2class(f_star)
 
     if display:
         plt.figure(figsize=(8, 6))
@@ -318,7 +318,7 @@ def sed_kurucz_model(lam, param, display=False, verbose=True):
     f_star = {"real": {"si": f_star_si, "Jy": f_star_jy, "cgs": f_star_cgs},
               "radmc": {"si": f_star_si_1pc, "Jy": f_star_jy_1pc, "cgs": f_star_cgs_1pc}}
 
-    fstar = AllMyFields(f_star)
+    fstar = dict2class(f_star)
 
     if display:
         plt.figure(figsize=(8, 6))
@@ -410,3 +410,80 @@ def compute_luminosity(sed_star, types, verbose=False):
                    (L1, L2, L1 + L2), color="magenta",)
             cprint("ratio[0.5mu] = %2.2f" % ratio_vis, color="magenta")
         return L1 + L2
+
+
+def Planck_law(T, wl, norm=False):
+    h = 6.62606957e-34
+    c = 299792458.
+    k = 1.3806488e-23
+    sigma = 5.670373e-8
+    P = (4 * np.pi**2) * sigma * T**4
+
+    B = ((2 * h * c**2 * wl**-5) /
+         (np.exp(h * c / (wl * k * T)) - 1)) / 1e6  # W/m2/micron
+    if norm:
+        res = B / P  # kW/m2/sr/m
+    else:
+        res = B
+    return res
+
+
+def fluxToJy(flux, wl, alpha, reverse=False):
+    """
+    Convert flux Flambda (in different unit) to spectral
+    flux density Fnu in Jansky or the reverse.
+
+    Parameters :
+    ----------
+
+    flux {float}:
+        Fλ [unit]
+    wl {float}:
+        Wavelenght [m]
+    unit {str}:
+        Unit of Fλ (see tab units)
+    reverse {boolean}:
+        reverse the formulae if True
+
+    Units :
+    -----
+
+    Constant conversion depend of Fλ unit :
+
+    =======================   =====   ========
+    ``Fλ measured in``        α       β
+    =======================   =====   ========
+    W/m2/m                    0       3×10-6
+    W/m2/μm                   1       3×10–12
+    W/cm2/μm                  2       3×10–16
+    erg/sec/cm2/μm            3       3×10–9
+    erg/sec/cm2/Å             4       3×10–13
+    =======================   =====   ========
+
+    References :
+    ----------
+
+    [1] Link STSCI http://www.stsci.edu/hst/nicmos/documents/handbooks/current_NEW/Appendix_B.14.3.html
+    [2] Wikipedia blackbody https://en.wikipedia.org/wiki/Black_body
+    """
+
+    if alpha == 0:
+        beta = 3e-6
+    elif alpha == 1:
+        beta = 3e-12
+    elif alpha == 2:
+        beta = 3e-16
+    elif alpha == 3:
+        beta = 3e-9
+    elif alpha == 4:
+        beta = 3e-13
+    else:
+        print('Bad unit of flux')
+        return None
+
+    wl2 = wl * 1e6  # wl2 in micron
+    if reverse:
+        out = (flux * beta) / wl2**2
+    else:
+        out = (flux * wl2**2) / beta
+    return out

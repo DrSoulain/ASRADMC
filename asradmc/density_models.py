@@ -1,4 +1,12 @@
 # -*- coding: utf-8 -*-
+from munch import munchify as dict2class
+from termcolor import cprint
+from scipy.ndimage import interpolation as ip
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib.colors import LogNorm, PowerNorm
+from matplotlib import pyplot as plt
+import numpy as np
+import matplotlib as mpl
 """
 Created on Wed Nov 29 12:13:36 2017
 
@@ -10,15 +18,6 @@ import time
 import matplotlib
 matplotlib.use('TkAgg')
 
-import matplotlib as mpl
-import numpy as np
-from matplotlib import pyplot as plt
-from matplotlib.colors import LogNorm, PowerNorm
-from mpl_toolkits.mplot3d import Axes3D
-from scipy.ndimage import interpolation as ip
-from termcolor import cprint
-
-from astools.all import AllMyFields
 
 # Some natural constants
 au = 1.49598e13     # Astronomical Unit       [cm]
@@ -458,4 +457,4 @@ def make_spiral_GRID(pinwheel_param, n=64, fov=0.3, ratio_y=1, posang=0, display
 
     t = time.time() - start_time
     print(("==> Create dust density map execution time = --- %2.1f s ---\n" % t))
-    return rhod_dust, AllMyFields(gridinfo)
+    return rhod_dust, dict2class(gridinfo)

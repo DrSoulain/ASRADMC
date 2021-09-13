@@ -18,7 +18,6 @@ import pickle
 import time
 
 import numpy as np
-from astools.all import rad2mas, write_fits
 from astropy import constants
 from astropy.io import fits
 from matplotlib import pyplot as plt
@@ -29,6 +28,7 @@ from termcolor import cprint
 
 from asradmc.radmc3dPy import analyze
 from asradmc.radmc3dPy import image as imageradmc
+from asradmc.tools import rad2mas, write_fits
 
 # Some natural constants
 au = constants.au.cgs.value  # Astronomical Unit [cm]
@@ -710,7 +710,7 @@ def save_temp_results(npts, param, start_time=0, Tsub=2000,
 
     # Find the dust in the grid
     loc_dust = dens > 1e-40
-    
+
     l_temp = temp[loc_dust]
 
     Tmean = l_temp.mean()
