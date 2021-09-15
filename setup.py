@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name="asradmc",
-    version="0.1",
+    version="0.2",
     packages=['asradmc'],
     install_requires=["matplotlib", "munch", "numpy", "pandas",
                       "astropy", "scipy", "termcolor", "tqdm",
