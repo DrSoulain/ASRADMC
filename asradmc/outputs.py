@@ -22,7 +22,6 @@ from astropy import constants
 from astropy.io import fits
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm, PowerNorm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from munch import munchify as dict2class
 from termcolor import cprint
 
@@ -504,11 +503,11 @@ def plot_image_results(res_image, dpc, unit='AU', log=False, p=0.5):
                  color="Navy")
     im_cbar = ax.imshow(im_rot, norm=norm, cmap="afmhot", vmin=vmin, vmax=vmax,
                         origin="upper", extent=extent)
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="3%", pad=0.05)
+    # divider = make_axes_locatable(ax)
+    # cax = divider.append_axes("right", size="3%", pad=0.05)
     ax.set_xlabel("%s [%s]" % (xlabel, unit), fontsize=12, color="gray")
     ax.set_ylabel("%s [%s]" % (ylabel, unit), fontsize=12, color="gray")
-    clb = plt.colorbar(im_cbar, cax=cax)
+    # clb = plt.colorbar(im_cbar, cax=cax)
     # clb.set_label('Flux density [Jy]', fontsize = 10, color = 'k')
     plt.subplot(1, 2, 2)
     ax = plt.gca()

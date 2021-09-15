@@ -2,7 +2,6 @@
 from munch import munchify as dict2class
 from termcolor import cprint
 from scipy.ndimage import interpolation as ip
-from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import LogNorm, PowerNorm
 from matplotlib import pyplot as plt
 import numpy as np
